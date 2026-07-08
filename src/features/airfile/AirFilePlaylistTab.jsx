@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import PropTypes from "prop-types";
 import {
   Play,
   StopCircle,
@@ -6,16 +7,40 @@ import {
   X,
   Upload,
   AlertCircle,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { PLAYLIST_LANGUAGES } from "@/api/airfileapi";
 import { useConvertPlaylist, useConvertPlaylistGCS } from "@/hooks/useAirFile";
+import { useChannels } from "@/hooks/useChannels";
+import { resolvePlaylistRoute } from "@/api/airfileapi";
 import { validateFile } from "./BatchUploadZone";
 import { BatchResultsList } from "./BatchResultsList";
 
 const SESSION_TTL_MS = 30 * 60 * 1000;
+
+const STATUS_STYLE = {
+  queued: "text-zinc-400 border-zinc-700",
+  processing: "text-blue-400 border-blue-500/40",
+  success: "text-emerald-400 border-emerald-500/40",
+  failed: "text-red-400 border-red-500/40",
+};
 
 function parseFileMeta(name) {
   const stem = name.replace(/\.xlsx$/i, "");
@@ -25,85 +50,339 @@ function parseFileMeta(name) {
   return { channel, date };
 }
 
-export function AirFilePlaylistTab() {
-  const { toast } = useToast();
-  const [lang, setLang] = useState("English");
-  const [useGCS, setUseGCS] = useState(false);
-  const [file, setFile] = useState(null); // { file: File, status, error }
-  const [results, setResults] = useState([]);
-  const [isProcessing, setIsProcessing] = useState(false);
+function LanguageMultiSelect({
+  options,
+  loading,
+  selected,
+  onToggle,
+  disabled,
+}) {
+  const [open, setOpen] = useState(false);
+
+  const mappedOptions = options.filter((l) => resolvePlaylistRoute(l));
+
+  const label =
+    selected.length === 0 ? "Select language(s)…" : selected.join(", ");
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled || loading}
+          className="w-full justify-between border-zinc-700 bg-zinc-950 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-100 font-normal"
+        >
+          <span className="truncate">
+            {loading ? "Loading channels…" : label}
+          </span>
+          <ChevronsUpDown size={14} className="ml-2 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[320px] p-0 bg-zinc-950 border-zinc-800">
+        <Command className="bg-zinc-950">
+          <CommandInput
+            placeholder="Search channel…"
+            className="text-zinc-200"
+          />
+          <CommandList>
+            <CommandEmpty className="text-zinc-500">
+              No channel found.
+            </CommandEmpty>
+            <CommandGroup>
+              {mappedOptions.map((l) => {
+                const checked = selected.includes(l);
+                return (
+                  <CommandItem
+                    key={l}
+                    value={l}
+                    onSelect={() => onToggle(l)}
+                    className="gap-2 text-zinc-300 aria-selected:bg-zinc-800 aria-selected:text-zinc-100"
+                  >
+                    <Checkbox checked={checked} className="shrink-0" />
+                    <span className="truncate">{l}</span>
+                    {checked && (
+                      <Check size={14} className="ml-auto shrink-0" />
+                    )}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+LanguageMultiSelect.propTypes = {
+  options: PropTypes.arrayOf(PropTypes.string).isRequired,
+  loading: PropTypes.bool.isRequired,
+  selected: PropTypes.arrayOf(PropTypes.string).isRequired,
+  onToggle: PropTypes.func.isRequired,
+  disabled: PropTypes.bool.isRequired,
+};
+
+function LanguageFileSlot({ lang, entry, onPick, onRemove, disabled }) {
   const [dragOver, setDragOver] = useState(false);
   const [dropError, setDropError] = useState(null);
   const inputRef = useRef(null);
-  const cancelRef = useRef(false);
 
-  const { mutateAsync: convertLocal } = useConvertPlaylist();
-  const { mutateAsync: convertGCS } = useConvertPlaylistGCS();
-
-  function pickFile(rawFile) {
+  function pick(rawFile) {
     const err = validateFile(rawFile, []);
     if (err) {
       setDropError(err);
       return;
     }
     setDropError(null);
-    setFile({ file: rawFile, status: "queued", error: null });
+    onPick(lang, rawFile);
   }
 
-  function handleDrop(e) {
-    e.preventDefault();
-    setDragOver(false);
+  const meta = entry ? parseFileMeta(entry.file.name) : null;
+  const locked = disabled || entry?.status === "processing";
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-xs font-medium text-zinc-400">{lang}</p>
+
+      {!entry ? (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (!locked) setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            if (locked) return;
+            const f = e.dataTransfer.files[0];
+            if (f) pick(f);
+          }}
+          onClick={() => !locked && inputRef.current?.click()}
+          onKeyDown={(e) =>
+            e.key === "Enter" && !locked && inputRef.current?.click()
+          }
+          role="button"
+          tabIndex={locked ? -1 : 0}
+          aria-label={`Select .xlsx for ${lang}`}
+          aria-disabled={locked}
+          className={cn(
+            "flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 border-dashed transition-colors text-xs",
+            locked
+              ? "border-zinc-800 opacity-50 cursor-not-allowed text-zinc-600"
+              : dragOver
+                ? "border-zinc-500 bg-zinc-800/50 cursor-copy text-zinc-300"
+                : "border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/30 cursor-pointer text-zinc-500",
+          )}
+        >
+          <Upload size={13} className="shrink-0" />
+          <span>
+            Drop .xlsx for {lang} or{" "}
+            <span className="text-zinc-200 underline underline-offset-2">
+              browse
+            </span>
+          </span>
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".xlsx"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) pick(f);
+              e.target.value = "";
+            }}
+            className="sr-only"
+            aria-label={`Select .xlsx for ${lang}`}
+          />
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 p-2.5 rounded-lg border border-zinc-800 bg-zinc-950">
+          <FileSpreadsheet size={15} className="text-zinc-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-zinc-200 truncate">
+              {entry.file.name}
+            </p>
+            <p className="text-[11px] text-zinc-500">
+              {meta.channel} — {meta.date}
+            </p>
+          </div>
+          <span
+            className={cn(
+              "text-[10px] font-medium px-1.5 py-0.5 rounded border capitalize",
+              STATUS_STYLE[entry.status],
+            )}
+          >
+            {entry.status}
+          </span>
+          {!locked && (
+            <button
+              onClick={() => onRemove(lang)}
+              aria-label={`Remove file for ${lang}`}
+              className="text-zinc-600 hover:text-zinc-300 transition-colors"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {dropError && (
+        <div
+          className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-red-500/10 border border-red-500/20"
+          role="alert"
+        >
+          <AlertCircle size={12} className="text-red-400 shrink-0" />
+          <span className="text-[11px] text-red-400">{dropError}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+LanguageFileSlot.propTypes = {
+  lang: PropTypes.string.isRequired,
+  entry: PropTypes.shape({
+    file: PropTypes.object.isRequired,
+    status: PropTypes.string.isRequired,
+    error: PropTypes.any,
+  }),
+  onPick: PropTypes.func.isRequired,
+  onRemove: PropTypes.func.isRequired,
+  disabled: PropTypes.bool.isRequired,
+};
+
+LanguageFileSlot.defaultProps = {
+  entry: null,
+};
+
+export function AirFilePlaylistTab() {
+  const { toast } = useToast();
+  const { data: channelsData, isLoading: channelsLoading } = useChannels({
+    page: 1,
+    limit: 50,
+  });
+  const channels = channelsData?.channels ?? [];
+  const [selectedLangs, setSelectedLangs] = useState([]);
+  const [useGCS, setUseGCS] = useState(false);
+  const [filesByLang, setFilesByLang] = useState({}); // { [lang]: { file, status, error } }
+  const [results, setResults] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const cancelRef = useRef(false);
+
+  const { mutateAsync: convertLocal } = useConvertPlaylist();
+  const { mutateAsync: convertGCS } = useConvertPlaylistGCS();
+
+  function toggleLang(l) {
     if (isProcessing) return;
-    const f = e.dataTransfer.files[0];
-    if (f) pickFile(f);
+    setSelectedLangs((prev) => {
+      if (prev.includes(l)) {
+        setFilesByLang((f) => {
+          const next = { ...f };
+          delete next[l];
+          return next;
+        });
+        return prev.filter((x) => x !== l);
+      }
+      return [...prev, l];
+    });
   }
 
-  function handleChange(e) {
-    const f = e.target.files?.[0];
-    if (f) pickFile(f);
-    e.target.value = "";
+  function pickFileForLang(lang, rawFile) {
+    setFilesByLang((prev) => ({
+      ...prev,
+      [lang]: { file: rawFile, status: "queued", error: null },
+    }));
   }
+
+  function removeFileForLang(lang) {
+    setFilesByLang((prev) => {
+      const next = { ...prev };
+      delete next[lang];
+      return next;
+    });
+  }
+
+  const allReady =
+    selectedLangs.length > 0 &&
+    selectedLangs.every((l) => filesByLang[l]?.status === "queued");
 
   async function handleProcess() {
-    if (!file || file.status !== "queued") return;
+    if (!allReady) return;
     cancelRef.current = false;
     setIsProcessing(true);
-    setFile((prev) => ({ ...prev, status: "processing" }));
-
-    const fd = new FormData();
-    fd.append("xlsx", file.file);
-
-    try {
-      const data = await (useGCS ? convertGCS : convertLocal)({
-        lang,
-        formData: fd,
+    setFilesByLang((prev) => {
+      const next = { ...prev };
+      selectedLangs.forEach((l) => {
+        next[l] = { ...next[l], status: "processing" };
       });
-      setFile((prev) => ({ ...prev, status: "success" }));
+      return next;
+    });
+
+    const convert = useGCS ? convertLocal : convertGCS;
+    const outcomes = await Promise.all(
+      selectedLangs.map((channel) => {
+        const route = resolvePlaylistRoute(channel);
+        if (!route) {
+          return Promise.resolve({
+            ok: false,
+            channel,
+            err: { message: `No playlist route configured for "${channel}"` },
+          });
+        }
+        const fd = new FormData();
+        fd.append("xlsx", filesByLang[channel].file);
+        return convert({ lang: route, formData: fd })
+          .then((data) => ({ ok: true, channel, lang: route, data }))
+          .catch((err) => ({ ok: false, channel, err }));
+      }),
+    );
+
+    const succeeded = outcomes.filter((o) => o.ok);
+    const failed = outcomes.filter((o) => !o.ok);
+
+    if (succeeded.length) {
       setResults((prev) => [
         ...prev,
-        { ...data, expiresAt: Date.now() + SESSION_TTL_MS, lang },
+        ...succeeded.map(({ lang, data }) => ({
+          ...data,
+          expiresAt: Date.now() + SESSION_TTL_MS,
+          lang,
+        })),
       ]);
-      toast({ title: "Playlist processed", description: file.file.name });
-    } catch (err) {
-      setFile((prev) => ({ ...prev, status: "failed", error: err }));
+    }
+
+    setFilesByLang((prev) => {
+      const next = { ...prev };
+      outcomes.forEach(({ channel, ok, err }) => {
+        next[channel] = {
+          ...next[channel],
+          status: ok ? "success" : "failed",
+          error: ok ? null : err,
+        };
+      });
+      return next;
+    });
+
+    if (succeeded.length) {
       toast({
-        title: "Processing failed",
-        description: err?.message ?? "Unknown error",
+        title: "Playlist processed",
+        description: succeeded.map((o) => o.channel).join(", "),
+      });
+    }
+    if (failed.length) {
+      toast({
+        title: "Some languages failed",
+        description: failed
+          .map((o) => `${o.channel}: ${o.err?.message ?? "Unknown error"}`)
+          .join("; "),
         variant: "destructive",
       });
-    } finally {
-      setIsProcessing(false);
     }
+
+    setIsProcessing(false);
   }
-
-  const meta = file ? parseFileMeta(file.file.name) : null;
-
-  const statusStyle = {
-    queued: "text-zinc-400 border-zinc-700",
-    processing: "text-blue-400 border-blue-500/40",
-    success: "text-emerald-400 border-emerald-500/40",
-    failed: "text-red-400 border-red-500/40",
-  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -114,28 +393,13 @@ export function AirFilePlaylistTab() {
           <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">
             Language
           </p>
-          <div
-            className="flex flex-wrap gap-1.5"
-            role="group"
-            aria-label="Select language"
-          >
-            {PLAYLIST_LANGUAGES.map((l) => (
-              <button
-                key={l}
-                onClick={() => setLang(l)}
-                aria-pressed={lang === l}
-                disabled={isProcessing}
-                className={cn(
-                  "px-3 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                  lang === l
-                    ? "bg-white text-black"
-                    : "bg-zinc-800 text-zinc-400 hover:text-zinc-100",
-                )}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
+          <LanguageMultiSelect
+            options={channels}
+            loading={channelsLoading}
+            selected={selectedLangs}
+            onToggle={toggleLang}
+            disabled={isProcessing}
+          />
         </div>
 
         {/* Mode */}
@@ -149,8 +413,8 @@ export function AirFilePlaylistTab() {
             aria-label="Select process mode"
           >
             {[
-              { value: false, label: "Local Processing" },
-              { value: true, label: "Upload to GCS" },
+              { value: false, label: "Upload to GCS" },
+              { value: true, label: "Local Processing" },
             ].map(({ value, label }) => (
               <button
                 key={label}
@@ -170,106 +434,28 @@ export function AirFilePlaylistTab() {
           </div>
         </div>
 
-        {/* Drop zone — hidden when file is selected */}
-        {!file && (
-          <div className="flex flex-col gap-2">
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                if (!isProcessing) setDragOver(true);
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => !isProcessing && inputRef.current?.click()}
-              onKeyDown={(e) =>
-                e.key === "Enter" && !isProcessing && inputRef.current?.click()
-              }
-              role="button"
-              tabIndex={isProcessing ? -1 : 0}
-              aria-label="Select a playlist file — drop or click to browse"
-              aria-disabled={isProcessing}
-              className={cn(
-                "flex flex-col items-center justify-center gap-3 p-8 rounded-lg border-2 border-dashed transition-colors",
-                isProcessing
-                  ? "border-zinc-800 opacity-50 cursor-not-allowed"
-                  : dragOver
-                    ? "border-zinc-500 bg-zinc-800/50 cursor-copy"
-                    : "border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/30 cursor-pointer",
-              )}
-            >
-              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-zinc-800">
-                <Upload size={18} className="text-zinc-400" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-medium text-zinc-300">
-                  Drop file here or{" "}
-                  <span className="text-zinc-100 underline underline-offset-2">
-                    browse
-                  </span>
-                </p>
-                <p className="text-xs text-zinc-500 mt-1">
-                  Single .xlsx — e.g. SS1_HD_LTS_25-Jun-26.xlsx
-                </p>
-              </div>
-              <input
-                ref={inputRef}
-                type="file"
-                accept=".xlsx"
-                onChange={handleChange}
-                className="sr-only"
-                aria-label="Select playlist file"
+        {/* Per-language file slots */}
+        {selectedLangs.length === 0 ? (
+          <p className="text-xs text-zinc-600 py-4 text-center">
+            Select one or more languages above to upload their playlists
+          </p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {selectedLangs.map((lang) => (
+              <LanguageFileSlot
+                key={lang}
+                lang={lang}
+                entry={filesByLang[lang]}
+                onPick={pickFileForLang}
+                onRemove={removeFileForLang}
+                disabled={isProcessing}
               />
-            </div>
-
-            {dropError && (
-              <div
-                className="flex items-center gap-2 p-3 rounded-md bg-red-500/10 border border-red-500/20"
-                role="alert"
-              >
-                <AlertCircle size={13} className="text-red-400 shrink-0" />
-                <span className="text-xs text-red-400">{dropError}</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Selected file row */}
-        {file && (
-          <div className="flex items-center gap-3 p-3 rounded-lg border border-zinc-800 bg-zinc-950">
-            <FileSpreadsheet size={16} className="text-zinc-400 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-zinc-200 truncate">
-                {file.file.name}
-              </p>
-              <p className="text-xs text-zinc-500">
-                {meta.channel} — {meta.date}
-              </p>
-            </div>
-            <span
-              className={cn(
-                "text-xs font-medium px-2 py-0.5 rounded border capitalize",
-                statusStyle[file.status],
-              )}
-            >
-              {file.status}
-            </span>
-            {!isProcessing && (
-              <button
-                onClick={() => {
-                  setFile(null);
-                  setDropError(null);
-                }}
-                aria-label="Remove file"
-                className="text-zinc-600 hover:text-zinc-300 transition-colors"
-              >
-                <X size={14} />
-              </button>
-            )}
+            ))}
           </div>
         )}
 
         {/* Action */}
-        {file && (
+        {selectedLangs.length > 0 && (
           <div className="flex items-center gap-3">
             {isProcessing ? (
               <Button
@@ -285,22 +471,13 @@ export function AirFilePlaylistTab() {
             ) : (
               <Button
                 onClick={handleProcess}
-                disabled={file.status !== "queued"}
+                disabled={!allReady}
                 className="bg-white text-black hover:bg-zinc-200 gap-1.5"
               >
                 <Play size={14} />
                 Process Playlist
+                {selectedLangs.length > 1 ? ` (${selectedLangs.length})` : ""}
               </Button>
-            )}
-            {!isProcessing && file.status !== "queued" && (
-              <button
-                onClick={() =>
-                  setFile((f) => ({ ...f, status: "queued", error: null }))
-                }
-                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-              >
-                Reset
-              </button>
             )}
           </div>
         )}
@@ -316,7 +493,7 @@ export function AirFilePlaylistTab() {
             }
             onClearAll={() => {
               setResults([]);
-              setFile(null);
+              setFilesByLang({});
             }}
           />
         ) : (

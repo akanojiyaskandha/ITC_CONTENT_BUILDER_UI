@@ -2,8 +2,30 @@ import newBackend from "./airfile-instance";
 
 export const PLAYLIST_LANGUAGES = ["English", "Hindi", "Kannada", "Tamil", "Telugu"];
 
-const BASE = () =>
-  import.meta.env.VITE_AIRFILE_API_URL ?? "http://localhost:4000/api/v1";
+// Maps a GCS channel name (from backend/'s /channels) to the newThings
+// playlist route segment (/playlists/<segment>/convert) that handles it.
+export const CHANNEL_TO_PLAYLIST_ROUTE = {
+  SS1_HD_LTS: "English",
+  SS1_HINDIHD_LTS: "Hindi",
+  SS1_KANNADA_LTS: "Kannada",
+  SS1_TAMILHD_LTS: "Tamil",
+  SS1_TELUGUHD_LTS: "Telugu",
+  SS2_HD_LTS: "EnglishSS2",
+  SS2_HINDIHD_LTS: "HindiSS2",
+  SS2_KANNADA_LTS: "KannadaSS2",
+  SS2_TAMILHD_LTS: "TamilSS2",
+  SS2_TELUGUHD_LTS: "TeluguSS2",
+  SS1_SELECTHD_LTS: "SS1_SELECTHD_LTS",
+  SS2_SELECTHD_LTS: "SS2_SELECTHD_LTS",
+  SS_KHEL_LTS: "SS2_KHEL_LTS",
+  SS3_LTS: "SS3_LTS",
+};
+
+export function resolvePlaylistRoute(channel) {
+  return CHANNEL_TO_PLAYLIST_ROUTE[channel];
+}
+
+const BASE = () => import.meta.env.VITE_AIRFILE_API_URL ?? "";
 
 export async function convertPlaylist(lang, formData) {
   const { data } = await newBackend.post(
@@ -68,6 +90,15 @@ export async function downloadPlaylistBlob(lang, sessionId, type) {
 
 export function getPTKDownloadUrl() {
   return `${BASE()}/PTK/download`;
+}
+
+export async function generateEasyAir(houseId) {
+  const { data } = await newBackend.post("/easy-air/generate", { houseId });
+  return data;
+}
+
+export function getEasyAirDownloadUrl(filename) {
+  return `${BASE()}/easy-air/download/${encodeURIComponent(filename)}`;
 }
 
 export function triggerDownload(url) {

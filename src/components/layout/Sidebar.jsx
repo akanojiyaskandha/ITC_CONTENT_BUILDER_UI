@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   Tv2,
   Radio,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { to: "/content", icon: FolderOpen, label: "Content Browser" },
   { to: "/retry", icon: RefreshCcw, label: "Retry Operations" },
   { to: "/airfile", icon: Radio, label: "Air File Builder" },
+  { to: "/asrun", icon: ClipboardList, label: "AS RUN" },
 ];
 
 export function Sidebar({ open, onToggle }) {

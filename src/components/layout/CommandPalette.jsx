@@ -16,6 +16,7 @@ import {
   FolderOpen,
   RefreshCcw,
   Radio,
+  ClipboardList,
 } from "lucide-react";
 
 const PAGES = [
@@ -25,6 +26,7 @@ const PAGES = [
   { label: "Content Browser", to: "/content", icon: FolderOpen },
   { label: "Retry Operations", to: "/retry", icon: RefreshCcw },
   { label: "Air File Builder", to: "/airfile", icon: Radio },
+  { label: "AS RUN", to: "/asrun", icon: ClipboardList },
 ];
 
 export function CommandPalette() {

@@ -5,6 +5,7 @@ import {
   uploadPTK,
   syncPTKFromSheets,
   uploadXML,
+  generateEasyAir,
 } from "@/api/airfileapi";
 
 export function useConvertPlaylist(options) {
@@ -38,6 +39,13 @@ export function useSyncPTK(options) {
 export function useUploadXML(options) {
   return useMutation({
     mutationFn: (formData) => uploadXML(formData),
+    ...options,
+  });
+}
+
+export function useGenerateEasyAir(options) {
+  return useMutation({
+    mutationFn: (houseId) => generateEasyAir(houseId),
     ...options,
   });
 }

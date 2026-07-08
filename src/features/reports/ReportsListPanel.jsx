@@ -63,7 +63,7 @@ export function ReportsListPanel({ reports = [], selected = null, onSelect, onDe
   }
 
   function handleDeleteConfirm() {
-    deleteReport(pendingDelete.playlistDate, {
+    deleteReport({ date: pendingDelete.playlistDate, type: pendingDelete.reportType }, {
       onSuccess: () => {
         toast({ title: `Report ${pendingDelete.fileName} deleted.` });
         if (selected === pendingDelete.fileName) onDeleted?.();

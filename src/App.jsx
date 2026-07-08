@@ -5,6 +5,7 @@ import { ReportsPage } from "@/features/reports/ReportsPage";
 import { ContentPage } from "@/features/content/ContentPage";
 import { RetryPage } from "@/features/retry/RetryPage";
 import { AirFilePage } from "@/features/airfile/AirFilePage";
+import { AsrunPage } from "@/features/asrun/AsrunPage";
 
 function AppRoutes() {
   return (
@@ -15,6 +16,7 @@ function AppRoutes() {
       <Route path="/content" element={<ContentPage />} />
       <Route path="/retry" element={<RetryPage />} />
       <Route path="/airfile" element={<AirFilePage />} />
+      <Route path="/asrun" element={<AsrunPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

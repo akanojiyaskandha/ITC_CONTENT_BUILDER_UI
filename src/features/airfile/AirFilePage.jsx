@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Radio, FileText, FileCode, Package } from "lucide-react";
+import { Radio, FileText, FileCode, Package, Wand2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Header } from "@/components/layout/Header";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,7 @@ import { AirFilePlaylistTab } from "./AirFilePlaylistTab";
 import { AirFilePTKTab } from "./AirFilePTKTab";
 import { AirFileXMLTab } from "./AirFileXMLTab";
 import { BulkPlaylistTab } from "./BulkPlaylistTab";
+import { AirFileEasyAirTab } from "./AirFileEasyAirTab";
 
 const TABS = [
   {
@@ -15,6 +16,12 @@ const TABS = [
     label: "Playlist",
     Icon: Radio,
     description: "Convert xlsx playlist files to .air broadcast schedule files",
+  },
+  {
+    id: "easyair",
+    label: "Easy Air",
+    Icon: Wand2,
+    description: "Generate .air files directly from one or more House IDs",
   },
   // {
   //   id:          "ptk",
@@ -97,6 +104,7 @@ export function AirFilePage() {
         {/* Tab panels */}
         <div role="tabpanel">
           {activeTab === "playlist" && <AirFilePlaylistTab />}
+          {activeTab === "easyair" && <AirFileEasyAirTab />}
           {/* {activeTab === "ptk"      && <AirFilePTKTab />}
           {activeTab === "xml"      && <AirFileXMLTab />} */}
           {/* {activeTab === "bulk"     && <BulkPlaylistTab />} */}

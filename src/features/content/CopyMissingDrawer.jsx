@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { DateTime } from "luxon";
 import { useChannels } from "@/hooks/useChannels";
 import { useChannelDates } from "@/hooks/useChannelDates";
 import { useCopyMissing } from "@/hooks/useCopyMissing";
@@ -38,7 +39,7 @@ export function CopyMissingDrawer({ open, onClose, defaultChannelName = null, de
   const { data: channelsData, isLoading: loadingChannels } = useChannels();
   const { data: datesData, isLoading: loadingDates } = useChannelDates(watchedChannel);
   const channels = channelsData?.channels ?? [];
-  const dates = datesData?.dates ?? [];
+  const dates = useMemo(() => datesData?.dates ?? [], [datesData]);
 
   const filteredChannels = channelSearch.trim()
     ? channels.filter((ch) => ch.toLowerCase().includes(channelSearch.toLowerCase()))
@@ -52,6 +53,14 @@ export function CopyMissingDrawer({ open, onClose, defaultChannelName = null, de
       setChannelSearch("");
     }
   }, [open, defaultChannelName, defaultDate, reset]);
+
+  useEffect(() => {
+    if (!open || loadingDates || dates.length === 0) return;
+    const todayLabel = DateTime.now().toFormat("dd-MMM-yy");
+    if (dates.includes(todayLabel)) {
+      setValue("playlistDate", todayLabel);
+    }
+  }, [open, dates, loadingDates, setValue]);
 
   useEffect(() => {
     if (!channelOpen) return;

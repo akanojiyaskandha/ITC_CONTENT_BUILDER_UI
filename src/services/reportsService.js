@@ -27,8 +27,10 @@ export async function downloadReport(date, type = "missing") {
   return response.data;
 }
 
-export async function deleteMissingReport(date) {
-  const { data } = await ltsApi.delete(`/missing-reports/${date}`);
+export async function deleteMissingReport(date, type = "missing") {
+  const { data } = await ltsApi.delete(`/missing-reports/${date}`, {
+    params: { type },
+  });
   return data;
 }
 
