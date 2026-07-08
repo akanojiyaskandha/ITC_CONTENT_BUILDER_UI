@@ -9,6 +9,7 @@ import {
   AlertCircle,
   ChevronsUpDown,
   Check,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -124,7 +125,7 @@ LanguageMultiSelect.propTypes = {
   disabled: PropTypes.bool.isRequired,
 };
 
-function LanguageFileSlot({ lang, entry, onPick, onRemove, disabled }) {
+function LanguageFileSlot({ lang, entry, onPick, onRemove, onDeselect, onRetry, disabled }) {
   const [dragOver, setDragOver] = useState(false);
   const [dropError, setDropError] = useState(null);
   const inputRef = useRef(null);
@@ -144,7 +145,18 @@ function LanguageFileSlot({ lang, entry, onPick, onRemove, disabled }) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="text-xs font-medium text-zinc-400">{lang}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-zinc-400">{lang}</p>
+        {!locked && (
+          <button
+            onClick={() => onDeselect(lang)}
+            aria-label={`Cancel ${lang}`}
+            className="text-zinc-600 hover:text-zinc-300 transition-colors"
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
 
       {!entry ? (
         <div
@@ -216,6 +228,15 @@ function LanguageFileSlot({ lang, entry, onPick, onRemove, disabled }) {
           >
             {entry.status}
           </span>
+          {!locked && entry.status === "failed" && (
+            <button
+              onClick={() => onRetry(lang)}
+              aria-label={`Retry ${lang}`}
+              className="text-zinc-600 hover:text-zinc-300 transition-colors"
+            >
+              <RefreshCw size={13} />
+            </button>
+          )}
           {!locked && (
             <button
               onClick={() => onRemove(lang)}
@@ -250,6 +271,8 @@ LanguageFileSlot.propTypes = {
   }),
   onPick: PropTypes.func.isRequired,
   onRemove: PropTypes.func.isRequired,
+  onDeselect: PropTypes.func.isRequired,
+  onRetry: PropTypes.func.isRequired,
   disabled: PropTypes.bool.isRequired,
 };
 
@@ -302,6 +325,56 @@ export function AirFilePlaylistTab() {
       delete next[lang];
       return next;
     });
+  }
+
+  async function retryLang(lang) {
+    const entry = filesByLang[lang];
+    if (!entry || entry.status === "processing") return;
+
+    setFilesByLang((prev) => ({
+      ...prev,
+      [lang]: { ...prev[lang], status: "processing", error: null },
+    }));
+
+    const route = resolvePlaylistRoute(lang);
+    if (!route) {
+      setFilesByLang((prev) => ({
+        ...prev,
+        [lang]: {
+          ...prev[lang],
+          status: "failed",
+          error: { message: `No playlist route configured for "${lang}"` },
+        },
+      }));
+      return;
+    }
+
+    const convert = useGCS ? convertLocal : convertGCS;
+    const fd = new FormData();
+    fd.append("xlsx", entry.file);
+
+    try {
+      const data = await convert({ lang: route, formData: fd });
+      setResults((prev) => [
+        ...prev,
+        { ...data, expiresAt: Date.now() + SESSION_TTL_MS, lang: route },
+      ]);
+      setFilesByLang((prev) => ({
+        ...prev,
+        [lang]: { ...prev[lang], status: "success", error: null },
+      }));
+      toast({ title: "Playlist processed", description: lang });
+    } catch (err) {
+      setFilesByLang((prev) => ({
+        ...prev,
+        [lang]: { ...prev[lang], status: "failed", error: err },
+      }));
+      toast({
+        title: `${lang} failed`,
+        description: err?.message ?? "Unknown error",
+        variant: "destructive",
+      });
+    }
   }
 
   const allReady =
@@ -448,6 +521,8 @@ export function AirFilePlaylistTab() {
                 entry={filesByLang[lang]}
                 onPick={pickFileForLang}
                 onRemove={removeFileForLang}
+                onDeselect={toggleLang}
+                onRetry={retryLang}
                 disabled={isProcessing}
               />
             ))}
