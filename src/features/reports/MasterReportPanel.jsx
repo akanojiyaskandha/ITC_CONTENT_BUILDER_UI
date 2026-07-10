@@ -7,20 +7,42 @@ import { Button } from "@/components/ui/button";
 import { Search, X, RefreshCw } from "lucide-react";
 
 const COLUMNS = [
-  { accessor: "channel", label: "Channel", width: "17%", className: "truncate" },
-  { accessor: "playlistDate", label: "Date", width: "9%", className: "truncate" },
-  { accessor: "startTime", label: "Start Time", width: "12%", className: "font-mono text-xs truncate" },
+  {
+    accessor: "channel",
+    label: "Channel",
+    width: "17%",
+    className: "truncate",
+  },
+  {
+    accessor: "playlistDate",
+    label: "Date",
+    width: "9%",
+    className: "truncate",
+  },
+  {
+    accessor: "startTime",
+    label: "Start Time",
+    width: "12%",
+    className: "font-mono text-xs truncate",
+  },
   { accessor: "type", label: "Type", width: "8%", className: "truncate" },
-  { accessor: "houseId", label: "House ID", width: "12%", className: "font-mono text-xs truncate" },
+  {
+    accessor: "houseId",
+    label: "House ID",
+    width: "12%",
+    className: "font-mono text-xs truncate",
+  },
   {
     accessor: "title",
     label: "Title",
     width: "24%",
     render: (row) => (
-      <span className="block truncate" title={row.title}>{row.title}</span>
+      <span className="block truncate" title={row.title}>
+        {row.title}
+      </span>
     ),
   },
-  { accessor: "expectedFolder", label: "Folder", width: "9%", className: "truncate" },
+  // { accessor: "expectedFolder", label: "Folder", width: "9%", className: "truncate" },
   {
     key: "status",
     accessor: "status",
@@ -51,7 +73,9 @@ export function MasterReportPanel() {
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => { setPage(1); }, [date, debouncedSearch]);
+  useEffect(() => {
+    setPage(1);
+  }, [date, debouncedSearch]);
 
   const { data, isLoading, isFetching, refetch } = useMasterReport({
     page,
@@ -82,7 +106,10 @@ export function MasterReportPanel() {
           className="h-8 px-2 rounded-md border border-zinc-800 bg-zinc-900 text-zinc-100 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-600"
         />
         <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <Search
+            size={14}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500"
+          />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -124,11 +151,15 @@ export function MasterReportPanel() {
         <div className="ml-auto flex items-center gap-2">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-red-800/50 bg-red-950/30">
             <span className="text-xs text-zinc-400">Missing</span>
-            <span className="text-sm font-bold text-red-400">{missingCount}</span>
+            <span className="text-sm font-bold text-red-400">
+              {missingCount}
+            </span>
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-green-800/50 bg-green-950/30">
             <span className="text-xs text-zinc-400">Done</span>
-            <span className="text-sm font-bold text-green-400">{doneCount}</span>
+            <span className="text-sm font-bold text-green-400">
+              {doneCount}
+            </span>
           </div>
         </div>
       </div>

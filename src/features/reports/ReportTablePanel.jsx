@@ -5,11 +5,31 @@ import { DataTable } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 
 const COLUMNS = [
-  { accessor: "channel",        label: "Channel",    width: "17%", className: "truncate" },
-  { accessor: "playlistDate",   label: "Date",       width: "9%",  className: "truncate" },
-  { accessor: "startTime",      label: "Start Time", width: "12%", className: "font-mono text-xs truncate" },
-  { accessor: "type",           label: "Type",       width: "8%",  className: "truncate" },
-  { accessor: "houseId",        label: "House ID",   width: "12%", className: "font-mono text-xs truncate" },
+  {
+    accessor: "channel",
+    label: "Channel",
+    width: "17%",
+    className: "truncate",
+  },
+  {
+    accessor: "playlistDate",
+    label: "Date",
+    width: "9%",
+    className: "truncate",
+  },
+  {
+    accessor: "startTime",
+    label: "Start Time",
+    width: "12%",
+    className: "font-mono text-xs truncate",
+  },
+  { accessor: "type", label: "Type", width: "8%", className: "truncate" },
+  {
+    accessor: "houseId",
+    label: "House ID",
+    width: "12%",
+    className: "font-mono text-xs truncate",
+  },
   {
     accessor: "title",
     label: "Title",
@@ -20,7 +40,7 @@ const COLUMNS = [
       </span>
     ),
   },
-  { accessor: "expectedFolder", label: "Folder",     width: "9%",  className: "truncate" },
+  // { accessor: "expectedFolder", label: "Folder",     width: "9%",  className: "truncate" },
   {
     key: "status",
     accessor: "status",
@@ -34,7 +54,12 @@ export function ReportTablePanel({ channel, date }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(200);
 
-  const { data, isLoading, isFetching, refetch } = useMissingReportRows({ channel, date, page, limit: pageSize });
+  const { data, isLoading, isFetching, refetch } = useMissingReportRows({
+    channel,
+    date,
+    page,
+    limit: pageSize,
+  });
 
   return (
     <div className="h-full flex flex-col">

@@ -1,14 +1,23 @@
 import PropTypes from "prop-types";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { FileUploadZone } from "@/components/shared/FileUploadZone";
-import { uploadPlaylist } from "@/services/playlistService";
+import { uploadPlaylistWithAirFile } from "./uploadPlaylistWithAirFile";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, RotateCcw, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const CONCURRENCY = 4;
 
-export function PlaylistUploadCard({ onJobStarted }) {
+export function PlaylistUploadCard({
+  onJobStarted,
+  onAirFileResult,
+  airFileMode,
+  onAirFileModeChange,
+  createAirFile,
+  onCreateAirFileChange,
+}) {
   const [files, setFiles] = useState([]);
   const [failed, setFailed] = useState([]); // { id, file, error }
   const [isUploading, setIsUploading] = useState(false);
@@ -16,13 +25,23 @@ export function PlaylistUploadCard({ onJobStarted }) {
 
   async function uploadOne(file) {
     try {
-      const { jobId } = await uploadPlaylist(file);
+      const { jobId, airFilePromise } = await uploadPlaylistWithAirFile(
+        file,
+        airFileMode,
+        createAirFile,
+      );
       onJobStarted(jobId, file);
+      onAirFileResult(jobId, { status: "pending" });
+      airFilePromise.then((result) => onAirFileResult(jobId, result));
       return true;
     } catch (err) {
       setFailed((prev) => [
         ...prev,
-        { id: `${file.name}-${Date.now()}`, file, error: err.message ?? "Upload failed" },
+        {
+          id: `${file.name}-${Date.now()}`,
+          file,
+          error: err.message ?? "Upload failed",
+        },
       ]);
       return false;
     }
@@ -39,7 +58,9 @@ export function PlaylistUploadCard({ onJobStarted }) {
       }
     }
 
-    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, batch.length) }, worker));
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, batch.length) }, worker),
+    );
     setIsUploading(false);
   }
 
@@ -49,7 +70,10 @@ export function PlaylistUploadCard({ onJobStarted }) {
     const batch = files;
     setFiles([]);
     await uploadBatch(batch);
-    toast({ title: "Upload complete", description: `${batch.length} playlist(s) queued.` });
+    toast({
+      title: "Upload complete",
+      description: `${batch.length} playlist(s) queued.`,
+    });
   }
 
   async function retryOne(entry) {
@@ -72,6 +96,60 @@ export function PlaylistUploadCard({ onJobStarted }) {
         hint="Filename must include channel name and date — e.g. LTS Prime 23-Jun-26.xlsx. You can select multiple files."
       />
 
+      <div className="flex items-center gap-3">
+        <Switch
+          id="create-air-file"
+          checked={createAirFile}
+          onCheckedChange={onCreateAirFileChange}
+          disabled={isUploading}
+        />
+        <label
+          htmlFor="create-air-file"
+          className="text-xs font-medium text-zinc-500 uppercase tracking-wide cursor-pointer"
+        >
+          Create Air File
+        </label>
+      </div>
+
+      <div
+        className={cn(
+          "flex items-center gap-3",
+          !createAirFile && "opacity-50",
+        )}
+      >
+        <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">
+          Air File Mode
+        </p>
+        <div
+          className="flex gap-0.5 p-0.5 rounded-md bg-zinc-950 border border-zinc-800"
+          role="group"
+          aria-label="Select air file mode"
+        >
+          {[
+            { value: "gcs", label: "Upload to GCS" },
+            { value: "local", label: "Local Processing" },
+          ].map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() =>
+                !isUploading && createAirFile && onAirFileModeChange(value)
+              }
+              aria-pressed={airFileMode === value}
+              disabled={isUploading || !createAirFile}
+              className={cn(
+                "px-3 py-1.5 rounded text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                airFileMode === value
+                  ? "bg-zinc-700 text-zinc-100"
+                  : "text-zinc-500 hover:text-zinc-300",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {failed.length > 0 && (
         <div className="flex flex-col gap-2">
           <p className="text-xs font-medium text-red-400 uppercase tracking-wide">
@@ -83,7 +161,9 @@ export function PlaylistUploadCard({ onJobStarted }) {
               className="flex items-center gap-3 p-3 rounded-lg border border-red-500/20 bg-red-500/10"
             >
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-zinc-100 truncate">{entry.file.name}</p>
+                <p className="text-sm font-medium text-zinc-100 truncate">
+                  {entry.file.name}
+                </p>
                 <p className="text-xs text-red-400 truncate">{entry.error}</p>
               </div>
               <Button
@@ -130,4 +210,9 @@ export function PlaylistUploadCard({ onJobStarted }) {
 
 PlaylistUploadCard.propTypes = {
   onJobStarted: PropTypes.func.isRequired,
+  onAirFileResult: PropTypes.func.isRequired,
+  airFileMode: PropTypes.oneOf(["gcs", "local"]).isRequired,
+  onAirFileModeChange: PropTypes.func.isRequired,
+  createAirFile: PropTypes.bool.isRequired,
+  onCreateAirFileChange: PropTypes.func.isRequired,
 };

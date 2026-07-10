@@ -5,7 +5,10 @@ import { Header } from "@/components/layout/Header";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { PlaylistUploadCard } from "./PlaylistUploadCard";
 import { PlaylistJobTracker } from "./PlaylistJobTracker";
-import { uploadPlaylist } from "@/services/playlistService";
+import {
+  uploadPlaylistWithAirFile,
+  generateAirFile,
+} from "./uploadPlaylistWithAirFile";
 import { useToast } from "@/hooks/use-toast";
 
 const pageVariants = {
@@ -16,16 +19,33 @@ const pageVariants = {
 export function PlaylistPage() {
   const shouldReduce = useReducedMotion();
   const [activeJobs, setActiveJobs] = useState([]); // { jobId, file }
+  const [airFileMode, setAirFileMode] = useState("gcs");
+  const [createAirFile, setCreateAirFile] = useState(true);
+  const [airFileByJob, setAirFileByJob] = useState({}); // { [jobId]: result }
   const { toast } = useToast();
+
+  function handleAirFileResult(jobId, result) {
+    setAirFileByJob((prev) => ({ ...prev, [jobId]: result }));
+  }
 
   async function retryJob(jobId) {
     const job = activeJobs.find((j) => j.jobId === jobId);
     if (!job) return;
     try {
-      const { jobId: newJobId } = await uploadPlaylist(job.file);
+      const { jobId: newJobId, airFilePromise } =
+        await uploadPlaylistWithAirFile(job.file, airFileMode, createAirFile);
       setActiveJobs((prev) =>
-        prev.map((j) => (j.jobId === jobId ? { jobId: newJobId, file: job.file } : j))
+        prev.map((j) =>
+          j.jobId === jobId ? { jobId: newJobId, file: job.file } : j,
+        ),
       );
+      setAirFileByJob((prev) => {
+        const rest = { ...prev };
+        delete rest[jobId];
+        rest[newJobId] = { status: "pending" };
+        return rest;
+      });
+      airFilePromise.then((result) => handleAirFileResult(newJobId, result));
     } catch (err) {
       toast({
         title: `Retry failed: ${job.file.name}`,
@@ -33,6 +53,14 @@ export function PlaylistPage() {
         variant: "destructive",
       });
     }
+  }
+
+  async function retryAirFile(jobId) {
+    const job = activeJobs.find((j) => j.jobId === jobId);
+    if (!job) return;
+    handleAirFileResult(jobId, { status: "pending" });
+    const result = await generateAirFile(job.file, airFileMode, createAirFile);
+    handleAirFileResult(jobId, result);
   }
 
   return (
@@ -62,6 +90,11 @@ export function PlaylistPage() {
               onJobStarted={(jobId, file) =>
                 setActiveJobs((prev) => [...prev, { jobId, file }])
               }
+              onAirFileResult={handleAirFileResult}
+              airFileMode={airFileMode}
+              onAirFileModeChange={setAirFileMode}
+              createAirFile={createAirFile}
+              onCreateAirFileChange={setCreateAirFile}
             />
           </div>
 
@@ -74,10 +107,19 @@ export function PlaylistPage() {
                 <PlaylistJobTracker
                   key={jobId}
                   jobId={jobId}
+                  airFile={airFileByJob[jobId]}
                   onRetry={() => retryJob(jobId)}
-                  onDismiss={() =>
-                    setActiveJobs((prev) => prev.filter((j) => j.jobId !== jobId))
-                  }
+                  onRetryAirFile={() => retryAirFile(jobId)}
+                  onDismiss={() => {
+                    setActiveJobs((prev) =>
+                      prev.filter((j) => j.jobId !== jobId),
+                    );
+                    setAirFileByJob((prev) => {
+                      const rest = { ...prev };
+                      delete rest[jobId];
+                      return rest;
+                    });
+                  }}
                 />
               ))}
             </div>

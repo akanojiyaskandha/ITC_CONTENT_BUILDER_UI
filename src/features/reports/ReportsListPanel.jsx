@@ -19,7 +19,13 @@ import { useRevalidateReport } from "@/hooks/useRevalidateReport";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTime } from "@/utils/formatters";
 
-export function ReportsListPanel({ reports = [], selected = null, onSelect, onDeleted = undefined, isLoading = false }) {
+export function ReportsListPanel({
+  reports = [],
+  selected = null,
+  onSelect,
+  onDeleted = undefined,
+  isLoading = false,
+}) {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
   const [revalidatingId, setRevalidatingId] = useState(null);
@@ -33,7 +39,9 @@ export function ReportsListPanel({ reports = [], selected = null, onSelect, onDe
     setRevalidatingId(report.fileName);
     revalidate(report.playlistDate, {
       onSuccess: (res) => {
-        toast({ title: `Revalidation done. Found: ${res.data.found}, Still Missing: ${res.data.stillMissing}` });
+        toast({
+          title: `Revalidation done. Found: ${res.data.found}, Still Missing: ${res.data.stillMissing}`,
+        });
         setRevalidatingId(null);
       },
       onError: () => {
@@ -63,24 +71,33 @@ export function ReportsListPanel({ reports = [], selected = null, onSelect, onDe
   }
 
   function handleDeleteConfirm() {
-    deleteReport({ date: pendingDelete.playlistDate, type: pendingDelete.reportType }, {
-      onSuccess: () => {
-        toast({ title: `Report ${pendingDelete.fileName} deleted.` });
-        if (selected === pendingDelete.fileName) onDeleted?.();
-        setPendingDelete(null);
+    deleteReport(
+      { date: pendingDelete.playlistDate, type: pendingDelete.reportType },
+      {
+        onSuccess: () => {
+          toast({ title: `Report ${pendingDelete.fileName} deleted.` });
+          if (selected === pendingDelete.fileName) onDeleted?.();
+          setPendingDelete(null);
+        },
+        onError: (err) => {
+          toast({
+            title: err.message ?? "Failed to delete report.",
+            variant: "destructive",
+          });
+          setPendingDelete(null);
+        },
       },
-      onError: (err) => {
-        toast({ title: err.message ?? "Failed to delete report.", variant: "destructive" });
-        setPendingDelete(null);
-      },
-    });
+    );
   }
 
   if (isLoading) {
     return (
       <div className="flex flex-col gap-1 animate-pulse">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-14 bg-zinc-900 rounded-lg border border-zinc-800" />
+          <div
+            key={i}
+            className="h-14 bg-zinc-900 rounded-lg border border-zinc-800"
+          />
         ))}
       </div>
     );
@@ -95,17 +112,21 @@ export function ReportsListPanel({ reports = [], selected = null, onSelect, onDe
     );
   }
 
+  const sortedReports = [...reports].sort(
+    (a, b) => new Date(b.playlistDate) - new Date(a.playlistDate),
+  );
+
   return (
     <>
       <div className="flex flex-col gap-1">
-        {reports.map((report) => (
+        {sortedReports.map((report) => (
           <div
             key={report.fileName}
             className={cn(
               "flex items-center justify-between px-3 py-2.5 rounded-lg border transition-colors cursor-pointer",
               selected === report.fileName
                 ? "border-zinc-600 bg-zinc-800"
-                : "border-zinc-800 bg-zinc-900 hover:bg-zinc-800/50"
+                : "border-zinc-800 bg-zinc-900 hover:bg-zinc-800/50",
             )}
             onClick={() => onSelect(report)}
             role="button"
@@ -114,9 +135,12 @@ export function ReportsListPanel({ reports = [], selected = null, onSelect, onDe
             aria-selected={selected === report.fileName}
           >
             <div className="min-w-0">
-              <p className="text-sm font-medium text-zinc-100">{report.fileName}</p>
+              <p className="text-sm font-medium text-zinc-100">
+                {report.fileName}
+              </p>
               <p className="text-xs text-zinc-500">
-                {report.recordCount} records · {formatDateTime(report.updatedAt)}
+                {report.recordCount} records ·{" "}
+                {formatDateTime(report.updatedAt)}
               </p>
             </div>
 
@@ -130,7 +154,12 @@ export function ReportsListPanel({ reports = [], selected = null, onSelect, onDe
                 onClick={(e) => handleRevalidate(e, report)}
                 title="Re-check missing items against S3"
               >
-                <RefreshCw size={13} className={revalidatingId === report.fileName ? "animate-spin" : ""} />
+                <RefreshCw
+                  size={13}
+                  className={
+                    revalidatingId === report.fileName ? "animate-spin" : ""
+                  }
+                />
               </Button>
 
               <Button
@@ -161,14 +190,21 @@ export function ReportsListPanel({ reports = [], selected = null, onSelect, onDe
         ))}
       </div>
 
-      <AlertDialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+      <AlertDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+      >
         <AlertDialogContent className="bg-zinc-900 border-zinc-700">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-zinc-100">Delete report?</AlertDialogTitle>
+            <AlertDialogTitle className="text-zinc-100">
+              Delete report?
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-zinc-400">
               This will permanently delete the{" "}
-              <span className="font-mono text-zinc-200">{pendingDelete?.fileName}</span> missing report from
-              the server. This action cannot be undone.
+              <span className="font-mono text-zinc-200">
+                {pendingDelete?.fileName}
+              </span>{" "}
+              missing report from the server. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -196,7 +232,7 @@ ReportsListPanel.propTypes = {
       fileName: PropTypes.string,
       recordCount: PropTypes.number,
       updatedAt: PropTypes.string,
-    })
+    }),
   ),
   selected: PropTypes.string,
   onSelect: PropTypes.func.isRequired,
